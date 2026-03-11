@@ -1,45 +1,47 @@
-# Dependencies
+# dependencies
 node_modules/
-
-# Environment variables
-.env
-.env*.local
 
 # Expo
 .expo/
 dist/
 web-build/
+expo-env.d.ts
 
 # Native builds
-ios/
-android/
+.kotlin/
+*.orig.*
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
-*.orig.*
-.kotlin/
 
 # Metro
 .metro-health-check*
 
-# Debug logs
+# debug
 npm-debug.*
 yarn-debug.*
 yarn-error.*
 
-# TypeScript
-*.tsbuildinfo
-
 # macOS
 .DS_Store
-
-# Editor
-.vscode/
-
-# Docker
-.dockerignore
-
-# Misc
 *.pem
+
+# local env files
+.env*.local
+.env
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+ios/
+android/
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db

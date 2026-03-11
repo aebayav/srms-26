@@ -1,438 +1,316 @@
-import React, { useRef, useState } from 'react';
+import { theme } from "@/constants/theme";
+import { useReports } from "@/context/ReportContext";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import {
-  View,
-  Text,
-  Image,
-  StyleSheet,
-  Alert,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  useColorScheme,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
 
-const lightTheme = {
-  screen: '#F2F4F7',
-  card: '#FFFFFF',
-  title: '#1C1C1E',
-  subtitle: '#8E8E93',
-  divider: '#E5E5EA',
-  label: '#3A3A3C',
-  inputBg: '#F9F9FB',
-  inputBorder: '#D1D1D6',
-  inputText: '#1C1C1E',
-  placeholder: '#AAAAAA',
-  imageBorder: '#E5E5EA',
-  shadow: '#000',
-};
+export default function HomeScreen() {
+  const router = useRouter();
+  const { reports } = useReports();
 
-const darkTheme = {
-  screen: '#000000',
-  card: '#1C1C1E',
-  title: '#F2F2F7',
-  subtitle: '#8E8E93',
-  divider: '#38383A',
-  label: '#EBEBF5',
-  inputBg: '#2C2C2E',
-  inputBorder: '#48484A',
-  inputText: '#F2F2F7',
-  placeholder: '#636366',
-  imageBorder: '#38383A',
-  shadow: '#000',
-};
+  const pendingCount = reports.filter((r) => r.status === "beklemede").length;
+  const reviewCount = reports.filter((r) => r.status === "inceleniyor").length;
+  const resolvedCount = reports.filter((r) => r.status === "cozuldu").length;
 
-function generateRequestId(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let id = 'SR-';
-  for (let i = 0; i < 8; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return id;
-}
-
-type SubmitResult = {
-  status: 'success' | 'error';
-  requestId: string;
-  message: string;
-} | null;
-
-export default function ProblemReportScreen() {
-  const colorScheme = useColorScheme();
-  const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [description, setDescription] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState<SubmitResult>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-
-  const takePhoto = async () => {
-    const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-    if (!granted) {
-      Alert.alert('Hata', 'Kamera izni vermeniz gerekiyor!');
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.7,
-    });
-
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!imageUri) {
-      Alert.alert('Hata', 'Lütfen önce bir fotoğraf çekin.');
-      return;
-    }
-    if (!description.trim()) {
-      Alert.alert('Hata', 'Lütfen sorunu yazın.');
-      return;
-    }
-
-    const requestId = generateRequestId();
-    setSubmitting(true);
-    try {
-      // Request location permission and get current position
-      const { granted } = await Location.requestForegroundPermissionsAsync();
-      if (!granted) {
-        Alert.alert('Hata', 'Konum izni vermeniz gerekiyor!');
-        setSubmitting(false);
-        return;
-      }
-      const location = await Location.getCurrentPositionAsync({});
-
-      // Build multipart form data with the actual photo file
-      const formData = new FormData();
-      formData.append('requestId', requestId);
-      formData.append('description', description.trim());
-      formData.append('latitude', String(location.coords.latitude));
-      formData.append('longitude', String(location.coords.longitude));
-      formData.append('photo', {
-        uri: imageUri,
-        name: `report_${requestId}.jpg`,
-        type: 'image/jpeg',
-      } as any);
-
-      // TODO: Replace URL with your actual API endpoint
-      const API_URL = 'https://your-api.example.com/reports';
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
-      }
-
-      console.log('Report submitted:', requestId);
-
-      setSubmitResult({
-        status: 'success',
-        requestId,
-        message: 'Başvurunuz alındı.',
-      });
-      // Reset form fields
-      setImageUri(null);
-      setDescription('');
-    } catch (error) {
-      console.error(error);
-      setSubmitResult({
-        status: 'error',
-        requestId,
-        message: 'Başvurunuz yapılamadı. Lütfen tekrar deneyin.',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // ---------- Result screen ----------
-  if (submitResult) {
-    const isSuccess = submitResult.status === 'success';
-    return (
-      <View style={[styles.screen, { backgroundColor: theme.screen }]}> 
-        <View style={styles.resultContainer}>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.card, shadowColor: theme.shadow },
-            ]}
-          >
-            <Text style={styles.resultIcon}>{isSuccess ? '✅' : '❌'}</Text>
-            <Text
-              style={[
-                styles.resultTitle,
-                { color: isSuccess ? '#34C759' : '#FF3B30' },
-              ]}
-            >
-              {isSuccess ? 'Başvurunuz Alındı!' : 'Başvurunuz Yapılamadı!'}
-            </Text>
-            <Text style={[styles.resultMessage, { color: theme.subtitle }]}>
-              {submitResult.message}
-            </Text>
-
-            <View style={[styles.idBadge, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
-              <Text style={[styles.idLabel, { color: theme.label }]}>Talep No</Text>
-              <Text style={[styles.idValue, { color: theme.title }]}>
-                {submitResult.requestId}
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.headerTitle}>ABB</Text>
+              <Text style={styles.headerSubtitle}>
+                Altyapı Bildirim Sistemi
               </Text>
             </View>
-
-            <TouchableOpacity
-              style={[styles.submitButton, { marginTop: 24 }]}
-              onPress={() => setSubmitResult(null)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.submitButtonText}>Yeni Bildirim</Text>
-            </TouchableOpacity>
+            <View style={styles.logo}>
+              <Ionicons name="shield-checkmark" size={32} color="#FFFFFF" />
+            </View>
           </View>
         </View>
-      </View>
-    );
-  }
 
-  // ---------- Form screen ----------
-  return (
-    <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: theme.screen }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
-      <ScrollView
-        ref={scrollViewRef}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Card */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.card, shadowColor: theme.shadow },
-          ]}
-        >
-          {/* Title */}
-          <Text style={[styles.title, { color: theme.title }]}>
-            Sorun Bildir
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.subtitle }]}>
-            Fotoğraf çekin, sorunu açıklayın ve gönderin.
-          </Text>
+        <View style={styles.statsContainer}>
+          <View style={styles.statsCard}>
+            <View style={styles.statsRow}>
+              <StatItem
+                number={reports.length}
+                label="Toplam"
+                color={theme.colors.primary}
+              />
+              <View style={styles.statDivider} />
+              <StatItem
+                number={pendingCount}
+                label="Beklemede"
+                color={theme.colors.warning}
+              />
+              <View style={styles.statDivider} />
+              <StatItem
+                number={reviewCount}
+                label="İnceleniyor"
+                color={theme.colors.info}
+              />
+              <View style={styles.statDivider} />
+              <StatItem
+                number={resolvedCount}
+                label="Çözüldü"
+                color={theme.colors.success}
+              />
+            </View>
+          </View>
+        </View>
 
-          {/* Divider */}
-          <View style={[styles.divider, { backgroundColor: theme.divider }]} />
-
-          {/* Camera button */}
+        <View style={styles.actionsContainer}>
           <TouchableOpacity
-            style={[styles.cameraButton, imageUri && styles.cameraButtonAlt]}
-            onPress={takePhoto}
-            activeOpacity={0.8}
+            style={styles.primaryButton}
+            onPress={() => router.push("/report" as any)}
+            activeOpacity={0.85}
           >
-            <Text style={styles.cameraButtonText}>
-              {imageUri ? '📷  Fotoğrafı Değiştir' : '📷  Kamerayı Aç'}
-            </Text>
+            <View style={styles.primaryButtonIcon}>
+              <Ionicons name="camera" size={26} color={theme.colors.primary} />
+            </View>
+            <View style={styles.primaryButtonContent}>
+              <Text style={styles.primaryButtonTitle}>Sorun Bildir</Text>
+              <Text style={styles.primaryButtonSub}>
+                Fotoğraf çek, konumu paylaş
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color={theme.colors.textTertiary}
+            />
           </TouchableOpacity>
 
-          {/* Photo preview */}
-          {imageUri && (
-            <View
-              style={[styles.imageWrapper, { borderColor: theme.imageBorder }]}
-            >
-              <Image source={{ uri: imageUri }} style={styles.image} />
-            </View>
-          )}
-
-          {/* Description input */}
-          <Text style={[styles.label, { color: theme.label }]}>Açıklama</Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.inputBg,
-                borderColor: theme.inputBorder,
-                color: theme.inputText,
-              },
-            ]}
-            placeholder="Sorunu Yazın"
-            placeholderTextColor={theme.placeholder}
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            onFocus={() => {
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 300);
-            }}
-          />
-
-          {/* Submit button */}
           <TouchableOpacity
-            style={[
-              styles.submitButton,
-              submitting && styles.submitButtonDisabled,
-            ]}
-            onPress={handleSubmit}
-            disabled={submitting}
-            activeOpacity={0.8}
+            style={styles.actionCard}
+            onPress={() => router.push("/history" as any)}
+            activeOpacity={0.85}
           >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Gönder</Text>
-            )}
+            <View style={[styles.actionIcon, { backgroundColor: "#FFF3E0" }]}>
+              <Ionicons
+                name="document-text"
+                size={22}
+                color={theme.colors.warning}
+              />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Bekleyen Taleplerim</Text>
+              <Text style={styles.actionSub}>
+                Geçmiş bildirimleri görüntüle
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.textTertiary}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            onPress={() => router.push("/map" as any)}
+            activeOpacity={0.85}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#E3F2FD" }]}>
+              <Ionicons name="map" size={22} color={theme.colors.info} />
+            </View>
+            <View style={styles.actionContent}>
+              <Text style={styles.actionTitle}>Harita</Text>
+              <Text style={styles.actionSub}>Bildirimleri haritada gör</Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.textTertiary}
+            />
           </TouchableOpacity>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        <Text style={styles.footer}>Ankara Büyükşehir Belediyesi</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function StatItem({
+  number,
+  label,
+  color,
+}: {
+  number: number;
+  label: string;
+  color: string;
+}) {
+  return (
+    <View style={styles.statItem}>
+      <Text style={[styles.statNumber, { color }]}>{number}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  safeArea: {
     flex: 1,
+    backgroundColor: theme.colors.primary,
   },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 16,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 440,
-    borderRadius: 16,
-    padding: 24,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  divider: {
-    height: 1,
-    marginVertical: 18,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-    marginTop: 4,
-  },
-  cameraButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  cameraButtonAlt: {
-    backgroundColor: '#5856D6',
-  },
-  cameraButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  imageWrapper: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  image: {
-    width: '100%',
-    height: 220,
-  },
-  input: {
-    width: '100%',
-    minHeight: 110,
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  submitButton: {
-    backgroundColor: '#34C759',
-    paddingVertical: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  // ---------- Result screen ----------
-  resultContainer: {
+  container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
+    backgroundColor: theme.colors.background,
   },
-  resultIcon: {
-    fontSize: 56,
-    textAlign: 'center',
-    marginBottom: 12,
+  header: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 24,
+    paddingTop: 48,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
-  resultTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  resultMessage: {
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 20,
-  },
-  idBadge: {
-    alignSelf: 'center',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-  },
-  idLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#FFFFFF",
     letterSpacing: 1,
-    marginBottom: 4,
   },
-  idValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: 2,
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 2,
+  },
+  logo: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statsContainer: {
+    paddingHorizontal: 24,
+    marginTop: -20,
+  },
+  statsCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 16,
+    padding: 16,
+    elevation: 4,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: theme.colors.border,
+  },
+  actionsContainer: {
+    paddingHorizontal: 24,
+    marginTop: 24,
+    gap: 12,
+  },
+  primaryButton: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+    elevation: 2,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+  },
+  primaryButtonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primaryLight,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  primaryButtonContent: {
+    flex: 1,
+  },
+  primaryButtonTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: theme.colors.text,
+  },
+  primaryButtonSub: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  actionCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 1,
+    shadowColor: theme.colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 3,
+  },
+  actionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: theme.colors.text,
+  },
+  actionSub: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: 1,
+  },
+  footer: {
+    textAlign: "center",
+    color: theme.colors.textTertiary,
+    fontSize: 12,
+    marginTop: "auto",
+    paddingBottom: 24,
   },
 });
